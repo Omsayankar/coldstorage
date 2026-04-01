@@ -1,0 +1,4 @@
+com\freshflow\AddonController.class
+com\freshflow\FreshFlowApplication.class
+com\freshflow\DashController.class
+com\freshflow\model\Item.class

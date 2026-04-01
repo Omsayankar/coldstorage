@@ -1,0 +1,89 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-set: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+.hero {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.video-bg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    min-width: 100%;
+    min-height: 100%;
+    width: auto;
+    height: auto;
+    transform: translate(-50%, -50%);
+    z-index: -1;
+    filter: brightness(45%) contrast(110%); /* The Cinematic Look */
+    object-fit: cover;
+}
+
+.overlay {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    color: white;
+    padding: 40px;
+}
+
+nav .logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+
+nav .logo span {
+    color: #00ff88; /* Fresh accent color */
+}
+
+.hero-content {
+    margin: auto;
+    text-align: center;
+}
+
+.hero-content h1 {
+    font-size: 5rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 10px;
+}
+
+.cta-buttons {
+    margin-top: 30px;
+}
+
+button {
+    padding: 15px 35px;
+    font-size: 1rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: 0.4s;
+    margin: 0 10px;
+    border-radius: 5px;
+}
+
+.btn-primary {
+    background: #00ff88;
+    border: none;
+    color: #000;
+    font-weight: bold;
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 2px solid white;
+    color: white;
+}
+
+button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+}
