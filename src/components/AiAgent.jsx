@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 const AiAgent = () => {
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: "FreshFlow Neural Link: v4.2 Online. I am ready to audit your logistics data." }
+        { role: 'assistant', content: "Neural Link Established. Good day, Sir. I am Smart Eco, your unrestricted AI companion. I am fully synchronized and ready to assist you with any inquiry, logic, or task. How may I serve you today?" }
     ]);
     const [userInput, setUserInput] = useState("");
     const [isThinking, setIsThinking] = useState(false);
@@ -16,20 +16,29 @@ const AiAgent = () => {
         if (e) e.preventDefault();
         if (!userInput.trim() || isThinking) return;
 
-        const currentInput = userInput;
+        const input = userInput;
         setUserInput("");
-        setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
+        
+        // Add User Message
+        setMessages(prev => [...prev, { role: 'user', content: input }]);
         setIsThinking(true);
 
         try {
-            setMessages(prev => [...prev, { role: 'assistant', content: "" }]);
-            let fullResponse = "";
-            const chatResponse = await window.puter.ai.chat(
-                `You are FreshFlow AI. Tactical inventory assistant. Context: ${currentInput}`,
-                { model: 'x-ai/grok-4.20-beta', stream: true }
-            );
+            const contextPrompt = `You are Smart Eco, a brilliant, polite AI assistant. Always address the user as 'Sir'. User Input: ${input}`;
 
-            for await (const part of chatResponse) {
+            // Initialize the AI Response placeholder
+            setMessages(prev => [...prev, { role: 'assistant', content: "" }]);
+
+            // CALL PUTER AI WITH STREAMING ENABLED
+            const response = await window.puter.ai.chat(contextPrompt, { 
+                model: 'gpt-4o', 
+                stream: true 
+            });
+
+            let fullResponse = "";
+
+            // LOOP THROUGH THE STREAM (This makes it respond as it thinks)
+            for await (const part of response) {
                 if (part?.text) {
                     fullResponse += part.text;
                     setMessages(prev => {
@@ -39,8 +48,14 @@ const AiAgent = () => {
                     });
                 }
             }
-        } catch (error) {
-            setMessages(prev => [...prev, { role: 'assistant', content: "SYSTEM_OFFLINE: Please refresh your browser bridge." }]);
+
+        } catch (err) {
+            console.error("Neural Link Error:", err);
+            setMessages(prev => {
+                const newMsgs = [...prev];
+                newMsgs[newMsgs.length - 1].content = "I apologize, Sir. My neural link is experiencing a bridge timeout. Please ensure you are logged into Puter.js.";
+                return newMsgs;
+            });
         } finally {
             setIsThinking(false);
         }
@@ -49,72 +64,57 @@ const AiAgent = () => {
     return (
         <div style={styles.pageContainer}>
             <style>{`
-                /* Breathing AI Orb Animation */
                 @keyframes orb-glow {
-                    0% { transform: scale(1); box-shadow: 0 0 20px #0ef, inset 0 0 10px #0ef; opacity: 0.8; }
-                    50% { transform: scale(1.1); box-shadow: 0 0 50px #0ef, inset 0 0 20px #0ef; opacity: 1; }
-                    100% { transform: scale(1); box-shadow: 0 0 20px #0ef, inset 0 0 10px #0ef; opacity: 0.8; }
-                }
-                @keyframes orb-rotate {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
+                    0% { transform: scale(1); box-shadow: 0 0 20px #00ff8833; }
+                    50% { transform: scale(1.05); box-shadow: 0 0 50px #00ff8888; }
+                    100% { transform: scale(1); box-shadow: 0 0 20px #00ff8833; }
                 }
                 .neural-orb {
-                    width: 60px; height: 60px; border-radius: 50%;
-                    background: radial-gradient(circle at 30% 30%, #fff, #0ef 60%, #002);
-                    animation: orb-glow 3s infinite ease-in-out;
-                    position: relative; margin: 0 auto 20px auto;
-                }
-                .orb-ring {
-                    position: absolute; top: -5px; left: -5px; right: -5px; bottom: -5px;
-                    border: 1px dashed #0ef; border-radius: 50%;
-                    animation: orb-rotate 10s linear infinite; opacity: 0.4;
+                    width: 70px; height: 70px; border-radius: 50%;
+                    background: radial-gradient(circle at 30% 30%, #fff, #00ff88 65%, #001a0e);
+                    animation: orb-glow 4s infinite ease-in-out;
+                    margin: 0 auto 15px auto;
                 }
                 .chat-scroll::-webkit-scrollbar { width: 0px; }
             `}</style>
 
-            {/* AI INTERACTIVE HEAD */}
-            <div style={styles.headerArea}>
-                <div className="neural-orb">
-                    <div className="orb-ring"></div>
-                </div>
-                <div style={styles.badge}>FRESHFLOW SMART AGENT</div>
+            <div style={styles.header}>
+                <div className="neural-orb"></div>
+                <div style={styles.statusBadge}>SMART ECO // NEURAL_INTERFACE_V4</div>
             </div>
 
-            {/* CHAT WINDOW (Adjustable/Flexible) */}
             <div className="chat-scroll" style={styles.chatWindow}>
                 {messages.map((msg, i) => (
                     <div key={i} style={{ 
-                        marginBottom: '15px', 
                         alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                        maxWidth: '85%' 
+                        marginBottom: '20px', maxWidth: '85%', display: 'flex', flexDirection: 'column'
                     }}>
                         <div style={{ 
-                            background: msg.role === 'user' ? 'rgba(0, 238, 255, 0.1)' : 'rgba(255, 255, 255, 0.03)',
-                            border: msg.role === 'user' ? '1px solid #0ef' : '1px solid rgba(255,255,255,0.1)',
-                            padding: '15px 20px', borderRadius: '15px', color: '#fff',
-                            fontSize: '0.95rem', lineHeight: '1.5', backdropFilter: 'blur(10px)'
+                            background: msg.role === 'user' ? 'rgba(0, 255, 136, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                            border: msg.role === 'user' ? '1px solid #00ff8866' : '1px solid rgba(255,255,255,0.1)',
+                            padding: '16px 24px', borderRadius: '24px', 
+                            color: '#fff', fontSize: '1.05rem', lineHeight: '1.6',
+                            backdropFilter: 'blur(15px)',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
                         }}>
-                            {msg.content}
+                            {msg.content || (msg.role === 'assistant' && i === messages.length-1 ? "● ● ●" : "")}
                         </div>
                     </div>
                 ))}
-                {isThinking && <div style={{ color: '#0ef', fontSize: '0.8rem', letterSpacing: '2px' }}>AI IS ANALYZING...</div>}
                 <div ref={chatEndRef} />
             </div>
 
-            {/* FLOATING INPUT COMMAND BAR */}
             <div style={styles.inputArea}>
-                <form onSubmit={askAI} style={styles.form}>
+                <form onSubmit={askAI} style={styles.inputForm}>
                     <input 
                         style={styles.input}
                         value={userInput}
                         onChange={(e) => setUserInput(e.target.value)}
-                        placeholder="Message FreshFlow AI..."
+                        placeholder="Inquire about anything, Sir..."
                         disabled={isThinking}
                     />
                     <button type="submit" style={isThinking ? styles.btnDisabled : styles.btn}>
-                        {isThinking ? "●" : "→"}
+                        {isThinking ? "..." : "SEND"}
                     </button>
                 </form>
             </div>
@@ -123,37 +123,15 @@ const AiAgent = () => {
 };
 
 const styles = {
-    pageContainer: { 
-        height: '80vh', width: '100%', display: 'flex', flexDirection: 'column', 
-        padding: '20px', boxSizing: 'border-box' 
-    },
-    headerArea: { textAlign: 'center', marginBottom: '20px' },
-    badge: { 
-        fontSize: '0.6rem', color: '#0ef', letterSpacing: '4px', fontWeight: '900', 
-        background: 'rgba(0,238,255,0.1)', padding: '5px 15px', borderRadius: '50px',
-        display: 'inline-block', border: '1px solid rgba(0,238,255,0.3)' 
-    },
-    chatWindow: { 
-        flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', 
-        padding: '10px', marginBottom: '20px' 
-    },
-    inputArea: { 
-        background: 'rgba(255,255,255,0.05)', borderRadius: '25px', padding: '10px 15px',
-        border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)' 
-    },
-    form: { display: 'flex', alignItems: 'center', gap: '10px' },
-    input: { 
-        flex: 1, background: 'transparent', border: 'none', color: '#fff', 
-        padding: '10px', outline: 'none', fontSize: '1rem' 
-    },
-    btn: { 
-        width: '45px', height: '45px', borderRadius: '50%', background: '#0ef', 
-        border: 'none', color: '#000', fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer' 
-    },
-    btnDisabled: { 
-        width: '45px', height: '45px', borderRadius: '50%', background: '#1a1a1a', 
-        border: 'none', color: '#444', cursor: 'not-allowed' 
-    }
+    pageContainer: { height: '82vh', display: 'flex', flexDirection: 'column', padding: '10px' },
+    header: { textAlign: 'center', marginBottom: '30px' },
+    statusBadge: { fontSize: '0.65rem', color: '#00ff88', letterSpacing: '5px', fontWeight: '900', opacity: 0.6 },
+    chatWindow: { flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '0 10px' },
+    inputArea: { background: 'rgba(255,255,255,0.05)', borderRadius: '50px', padding: '8px 25px', border: '1px solid rgba(255,255,255,0.1)', marginTop: '20px', backdropFilter: 'blur(10px)' },
+    inputForm: { display: 'flex', alignItems: 'center', gap: '15px' },
+    input: { flex: 1, background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '1.1rem' },
+    btn: { background: '#00ff88', border: 'none', color: '#000', fontWeight: '900', padding: '12px 30px', borderRadius: '30px', cursor: 'pointer', transition: '0.3s' },
+    btnDisabled: { background: '#111', color: '#333', padding: '12px 30px', borderRadius: '30px', cursor: 'not-allowed' }
 };
 
 export default AiAgent;

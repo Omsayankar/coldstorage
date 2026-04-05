@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useMemo, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
-// Component Imports - Ensure these paths match your folder structure!
+// Component Imports
 import Addon from './components/Addon';
 import Dash from './components/dash';
 import AiAgent from './components/AiAgent';
@@ -98,6 +98,20 @@ function HomeScroll() {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState('home');
+  const [items, setItems] = useState([]); // SHARED STATE FOR AI
+
+  // Fetch items centrally so AI and Dashboard stay in sync
+  const fetchGlobalItems = async () => {
+    try {
+      const res = await fetch('http://localhost:8080/api/items');
+      const data = await res.json();
+      setItems(data);
+    } catch (err) { console.error("Global Sync Error"); }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) fetchGlobalItems();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (currentView === 'home' || !isAuthenticated) {
@@ -142,9 +156,14 @@ export default function App() {
 
       {/* VIEW SWITCHER */}
       {currentView === 'home' && <HomeScroll />}
-      {currentView === 'addon' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><Addon /></div></div>}
-      {currentView === 'dashboard' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><Dash /></div></div>}
-      {currentView === 'ai' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><AiAgent /></div></div>}
+      
+      {/* Passing fetchGlobalItems to Addon so it can trigger a refresh across the app */}
+      {currentView === 'addon' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><Addon onItemAdded={fetchGlobalItems} /></div></div>}
+      
+      {currentView === 'dashboard' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><Dash inventory={items} /></div></div>}
+      
+      {/* PASSING DATA TO AI AGENT FOR REAL-TIME AUDIT */}
+      {currentView === 'ai' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><AiAgent inventoryData={items} /></div></div>}
     </div>
   );
 }
