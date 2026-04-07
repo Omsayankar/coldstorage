@@ -8,6 +8,8 @@ public class Item {
     public double price;
     public String vendor;
     public String expiry;
+    public String quality;
+    public Integer rating;
 
     // Empty constructor for JSON
     public Item() {}

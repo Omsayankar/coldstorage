@@ -1,58 +1,87 @@
 package com.freshflow;
 
+import com.mongodb.client.*;
+import org.bson.Document;
 import io.javalin.http.Context;
-import org.jdbi.v3.core.Jdbi;
 import java.util.*;
 
 public class DashController {
-    private final Jdbi jdbi;
-    public DashController(Jdbi jdbi) { this.jdbi = jdbi; }
+    private final MongoCollection<Document> collection;
+
+    public DashController(MongoClient mongoClient) {
+        this.collection = mongoClient.getDatabase("freshflow_db").getCollection("inventory");
+    }
 
     public void getSystemStats(Context ctx) {
         try {
-            jdbi.useHandle(handle -> {
-                List<Map<String, Object>> allItems = handle.createQuery("SELECT qty, price, category, expiry FROM inventory").mapToMap().list();
-                double totalValue = 0.0;
-                double estimatedLoss = 0.0;
-                int foodCount = 0;
-                int electronicsCount = 0;
-                int cosmeticsCount = 0;
-                int medicalCount = 0;
+            double totalValue = 0.0;
+            double estimatedLoss = 0.0;
+            double foodValue = 0.0, electronicsValue = 0.0, cosmeticsValue = 0.0, medicalValue = 0.0;
 
-                for (Map<String, Object> item : allItems) {
-                    int qty = item.get("qty") != null ? ((Number) item.get("qty")).intValue() : 0;
-                    double price = item.get("price") != null ? ((Number) item.get("price")).doubleValue() : 0.0;
-                    String category = item.get("category") != null ? item.get("category").toString() : "";
-                    String expiryDate = item.get("expiry") != null ? item.get("expiry").toString() : "";
+            FindIterable<Document> allItems = collection.find();
 
-                    double itemValue = qty * price;
-                    totalValue += itemValue;
-
-                    // UPDATED: Logic for Estimated Loss (7-day window)
-                    long daysLeft = expiry.calculateDaysLeft(expiryDate);
-                    if (daysLeft >= 0 && daysLeft <= 7) {
-                        estimatedLoss += itemValue;
-                    }
-
-                    switch (category.toUpperCase()) {
-                        case "FOOD" -> foodCount++;
-                        case "ELECTRONICS" -> electronicsCount++;
-                        case "COSMETICS" -> cosmeticsCount++;
-                        case "PHARMACY", "MEDICAL" -> medicalCount++;
+            for (Document item : allItems) {
+                // Safe extraction with defaults
+                Object qtyObj = item.get("qty");
+                int qty = 0;
+                if (qtyObj instanceof Number) {
+                    qty = ((Number) qtyObj).intValue();
+                } else if (qtyObj instanceof String) {
+                    try {
+                        qty = Integer.parseInt((String) qtyObj);
+                    } catch (NumberFormatException e) {
+                        qty = 0;
                     }
                 }
 
-                int itemCount = allItems.size();
-                Map<String, Object> stats = new HashMap<>();
-                stats.put("totalValue", totalValue);
-                stats.put("estimatedLoss", estimatedLoss);
-                stats.put("foodRatio", itemCount > 0 ? (int) Math.round(100.0 * foodCount / itemCount) : 0);
-                stats.put("electronicsRatio", itemCount > 0 ? (int) Math.round(100.0 * electronicsCount / itemCount) : 0);
-                stats.put("cosmeticsRatio", itemCount > 0 ? (int) Math.round(100.0 * cosmeticsCount / itemCount) : 0);
-                stats.put("medicalRatio", itemCount > 0 ? (int) Math.round(100.0 * medicalCount / itemCount) : 0);
+                Object priceObj = item.get("price");
+                double price = 0.0;
+                if (priceObj instanceof Number) {
+                    price = ((Number) priceObj).doubleValue();
+                } else if (priceObj instanceof String) {
+                    try {
+                        price = Double.parseDouble((String) priceObj);
+                    } catch (NumberFormatException e) {
+                        price = 0.0;
+                    }
+                }
 
-                ctx.json(stats);
-            });
+                String category = item.getString("category");
+                if (category == null) category = "";
+                category = category.toUpperCase();
+
+                String expiryDate = item.getString("expiry");
+                if (expiryDate == null) expiryDate = "";
+
+                double itemValue = qty * price;
+                totalValue += itemValue;
+
+                long daysLeft = expiry.calculateDaysLeft(expiryDate);
+                if (daysLeft >= 0 && daysLeft <= 7) {
+                    estimatedLoss += itemValue;
+                }
+
+                // Calculate value by category (not just count)
+                switch (category) {
+                    case "FOOD" -> foodValue += itemValue;
+                    case "ELECTRONICS" -> electronicsValue += itemValue;
+                    case "COSMETICS" -> cosmeticsValue += itemValue;
+                    case "PHARMACY", "MEDICAL" -> medicalValue += itemValue;
+                }
+            }
+
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalValue", totalValue);
+            stats.put("estimatedLoss", estimatedLoss);
+            
+            // Calculate category ratios by value (more meaningful for inventory)
+            double total = totalValue > 0 ? totalValue : 1;
+            stats.put("foodRatio", (int) Math.round(100.0 * foodValue / total));
+            stats.put("electronicsRatio", (int) Math.round(100.0 * electronicsValue / total));
+            stats.put("cosmeticsRatio", (int) Math.round(100.0 * cosmeticsValue / total));
+            stats.put("medicalRatio", (int) Math.round(100.0 * medicalValue / total));
+
+            ctx.json(stats);
         } catch (Exception e) { ctx.status(500).result(e.getMessage()); }
     }
 }

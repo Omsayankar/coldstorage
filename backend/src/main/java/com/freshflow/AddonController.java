@@ -1,72 +1,86 @@
 package com.freshflow;
 
+import com.mongodb.client.*;
+import org.bson.Document;
+import org.bson.types.ObjectId;
 import io.javalin.http.Context;
-import org.jdbi.v3.core.Jdbi;
 import java.util.*;
+import static com.mongodb.client.model.Filters.eq;
 
 public class AddonController {
-    private final Jdbi jdbi;
-    public AddonController(Jdbi jdbi) { this.jdbi = jdbi; }
+    private final MongoCollection<Document> collection;
+
+    public AddonController(MongoClient mongoClient) {
+        this.collection = mongoClient.getDatabase("freshflow_db").getCollection("inventory");
+    }
 
     public void getAllItems(Context ctx) {
-        List<Map<String, Object>> items = jdbi.withHandle(handle -> 
-            handle.createQuery("SELECT * FROM inventory ORDER BY id DESC").mapToMap().list()
-        );
-
-        // Use your 'expiry.java' class to calculate lifespan and days left
-        for (Map<String, Object> item : items) {
-            String storedDate = (String) item.get("stored");
-            String expiryDate = (String) item.get("expiry");
-            item.put("lifespan", expiry.calculateLifeSpan(storedDate, expiryDate));
-            item.put("days_left", expiry.calculateDaysLeft(expiryDate));
+        List<Document> items = new ArrayList<>();
+        for (Document doc : collection.find()) {
+            doc.put("id", doc.getObjectId("_id").toString());
+            
+            // Calculate days left for the table display
+            String expiryDate = doc.getString("expiry");
+            long daysLeft = expiry.calculateDaysLeft(expiryDate);
+            
+            doc.put("days_left", daysLeft);
+            items.add(doc);
         }
         ctx.json(items);
     }
 
-    public void getExpiryZones(Context ctx) {
-        List<Map<String, Object>> all = jdbi.withHandle(handle -> 
-            handle.createQuery("SELECT name, expiry FROM inventory").mapToMap().list()
-        );
+    public void updateItem(Context ctx) {
+        try {
+            String id = ctx.pathParam("id");
+            Document body = Document.parse(ctx.body());
+            
+            // Cleanup: Mongo doesn't need these calculated fields or the String ID
+            body.remove("id");
+            body.remove("_id");
+            body.remove("days_left");
+            body.remove("lifespan");
+            body.remove("_computedDaysLeft");
 
+            // Use $set to preserve other fields like category if they aren't in the edit
+            collection.updateOne(eq("_id", new ObjectId(id)), new Document("$set", body));
+            ctx.status(200);
+        } catch (Exception e) {
+            ctx.status(500).result("Sync Failed: " + e.getMessage());
+        }
+    }
+
+    // Keep your existing addItem, getExpiryZones, and deleteItem methods same...
+    public void addItem(Context ctx) { 
+        try {
+            Document doc = Document.parse(ctx.body());
+            collection.insertOne(doc);
+            ctx.status(201).json(Map.of("message", "Item created"));
+        } catch (Exception e) {
+            ctx.status(500).result("Add item failed: " + e.getMessage());
+        }
+    }
+
+    public void getExpiryZones(Context ctx) {
         List<Map<String, Object>> critical = new ArrayList<>();
-        for (Map<String, Object> item : all) {
-            long days = expiry.calculateDaysLeft((String) item.get("expiry"));
+        for (Document doc : collection.find()) {
+            long days = expiry.calculateDaysLeft(doc.getString("expiry"));
             if (days >= 0 && days <= 7) {
                 Map<String, Object> threat = new HashMap<>();
-                threat.put("name", item.get("name"));
+                threat.put("name", doc.get("name"));
                 threat.put("days_left", days);
                 critical.add(threat);
             }
         }
-        Map<String, Object> response = new HashMap<>();
-        response.put("critical", critical);
-        ctx.json(response);
-    }
-
-    public void addItem(Context ctx) {
-        Map<String, Object> body = ctx.bodyAsClass(Map.class);
-        jdbi.useHandle(handle -> 
-            handle.execute("INSERT INTO inventory (name, category, qty, price, vendor, stored, expiry, grade, quality) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                body.get("name"), body.get("category"), body.get("qty"), body.get("price"), 
-                body.get("vendor"), body.get("stored"), body.get("expiry"), body.get("grade"), body.get("quality"))
-        );
-        ctx.status(201);
-    }
-
-    public void updateItem(Context ctx) {
-        String id = ctx.pathParam("id");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = ctx.bodyAsClass(Map.class);
-        jdbi.useHandle(handle -> 
-            handle.execute("UPDATE inventory SET name=?, vendor=?, qty=?, price=?, stored=?, expiry=?, category=?, grade=?, quality=? WHERE id=?",
-                body.get("name"), body.get("vendor"), body.get("qty"), body.get("price"), 
-                body.get("stored"), body.get("expiry"), body.get("category"), body.get("grade"), body.get("quality"), id)
-        );
-        ctx.status(200);
+        ctx.json(Collections.singletonMap("critical", critical));
     }
 
     public void deleteItem(Context ctx) {
-        jdbi.useHandle(handle -> handle.execute("DELETE FROM inventory WHERE id = ?", ctx.pathParam("id")));
-        ctx.status(204);
+        try {
+            String id = ctx.pathParam("id");
+            collection.deleteOne(eq("_id", new ObjectId(id)));
+            ctx.status(204);
+        } catch (Exception e) {
+            ctx.status(500).result("Delete item failed: " + e.getMessage());
+        }
     }
 }

@@ -6,23 +6,46 @@ const Dash = (props) => {
     foodRatio: 0, cosmeticsRatio: 0, electronicsRatio: 0, medicalRatio: 0
   });
 
+  const syncStats = async () => {
+    try {
+      const res = await fetch('http://localhost:8080/api/stats');
+      const data = await res.json();
+      setLiveStats({
+        totalValue: data.totalValue ?? data.totalvalue ?? 0,
+        estimatedLoss: data.estimatedLoss ?? data.estimatedloss ?? 0,
+        foodRatio: data.foodRatio ?? data.foodratio ?? 0,
+        cosmeticsRatio: data.cosmeticsRatio ?? data.cosmeticsratio ?? 0,
+        electronicsRatio: data.electronicsRatio ?? data.electronicsratio ?? 0,
+        medicalRatio: data.medicalRatio ?? data.medicalratio ?? 0
+      });
+    } catch (err) { console.error("Stats Sync Error:", err); }
+  };
+
   useEffect(() => {
-    const syncStats = async () => {
-      try {
-        const res = await fetch('http://localhost:8080/api/stats');
-        const data = await res.json();
-        setLiveStats({
-          totalValue: data.totalValue ?? data.totalvalue ?? 0,
-          estimatedLoss: data.estimatedLoss ?? data.estimatedloss ?? 0,
-          foodRatio: data.foodRatio ?? data.foodratio ?? 0,
-          cosmeticsRatio: data.cosmeticsRatio ?? data.cosmeticsratio ?? 0,
-          electronicsRatio: data.electronicsRatio ?? data.electronicsratio ?? 0,
-          medicalRatio: data.medicalRatio ?? data.medicalratio ?? 0
-        });
-      } catch (err) { console.error("Stats Sync Error:", err); }
-    };
     syncStats();
+    const interval = setInterval(syncStats, 2000);
+    return () => clearInterval(interval);
   }, [props.inventory]);
+
+  const calculatedLoss = React.useMemo(() => {
+    if (!props.inventory || props.inventory.length === 0) return liveStats.estimatedLoss;
+    return props.inventory.reduce((sum, item) => {
+      let daysLeft = item.days_left ?? 0;
+      if (item.expiry) {
+        const expiryDate = new Date(item.expiry);
+        if (!isNaN(expiryDate.getTime())) {
+          const now = new Date();
+          expiryDate.setHours(0, 0, 0, 0);
+          now.setHours(0, 0, 0, 0);
+          daysLeft = Math.round((expiryDate - now) / (1000 * 60 * 60 * 24));
+        }
+      }
+      if (daysLeft <= 7) {
+         return sum + (Number(item.price) || 0) * (Number(item.qty) || 1);
+      }
+      return sum;
+    }, 0);
+  }, [props.inventory, liveStats.estimatedLoss]);
 
   const categories = [
     { name: 'FOOD', value: liveStats.foodRatio, color: '#00ff88' },
@@ -34,7 +57,7 @@ const Dash = (props) => {
   // LIQUID LEVEL: Now scales based on the Percentage of Loss relative to Total Value
   const getLossLiquidHeight = () => {
     if (liveStats.totalValue === 0) return 15;
-    const lossPerc = (liveStats.estimatedLoss / liveStats.totalValue) * 100;
+    const lossPerc = (calculatedLoss / liveStats.totalValue) * 100;
     return Math.min(95, lossPerc + 20); // Base 20% fill + loss intensity
   };
 
@@ -67,13 +90,13 @@ const Dash = (props) => {
         </div>
         <div style={{...styles.statCard, borderLeft: '6px solid #ff4d4d'}}>
           <label style={{...styles.miniLabel, color: '#ff4d4d'}}>ESTIMATED LOSS (7-DAY WINDOW)</label>
-          <div style={{...styles.statValue, color: '#ff4d4d'}}>₹{Number(liveStats.estimatedLoss).toLocaleString()}</div>
+          <div style={{...styles.statValue, color: '#ff4d4d'}}>₹{Number(calculatedLoss).toLocaleString()}</div>
         </div>
       </div>
 
       <div style={styles.liquidContainer}>
         {['critical', 'stable', 'secure'].map((level) => {
-          const isHighLoss = liveStats.estimatedLoss > (liveStats.totalValue * 0.1);
+          const isHighLoss = calculatedLoss > (liveStats.totalValue * 0.1);
           const colors = {
             critical: { main: '#ff4d4d', dark: '#660000' },
             stable: { main: '#ffcc00', dark: '#664400' },
@@ -114,10 +137,18 @@ const Dash = (props) => {
         </div>
         <svg viewBox="0 0 36 36" style={styles.svgPie}>
           <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#00ff88" strokeWidth="4" strokeDasharray={`${liveStats.foodRatio} 100`} strokeDashoffset="25" />
-          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#00d1ff" strokeWidth="4" strokeDasharray={`${liveStats.cosmeticsRatio} 100`} strokeDashoffset={`${100 - liveStats.foodRatio + 25}`} />
-          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#ffcc00" strokeWidth="4" strokeDasharray={`${liveStats.electronicsRatio} 100`} strokeDashoffset={`${100 - (liveStats.foodRatio + liveStats.cosmeticsRatio) + 25}`} />
-          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#ff4d4d" strokeWidth="4" strokeDasharray={`${liveStats.medicalRatio} 100`} strokeDashoffset={`${100 - (liveStats.foodRatio + liveStats.cosmeticsRatio + liveStats.electronicsRatio) + 25}`} />
+          {/* FOOD */}
+          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#00ff88" strokeWidth="3" 
+            strokeDasharray={`${(liveStats.foodRatio / 100) * 100} 100`} strokeDashoffset="25" strokeLinecap="round" />
+          {/* COSMETICS */}
+          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#00d1ff" strokeWidth="3" 
+            strokeDasharray={`${(liveStats.cosmeticsRatio / 100) * 100} 100`} strokeDashoffset={25 - (liveStats.foodRatio / 100) * 100} strokeLinecap="round" />
+          {/* ELECTRONICS */}
+          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#ffcc00" strokeWidth="3" 
+            strokeDasharray={`${(liveStats.electronicsRatio / 100) * 100} 100`} strokeDashoffset={25 - ((liveStats.foodRatio + liveStats.cosmeticsRatio) / 100) * 100} strokeLinecap="round" />
+          {/* MEDICAL */}
+          <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#ff4d4d" strokeWidth="3" 
+            strokeDasharray={`${(liveStats.medicalRatio / 100) * 100} 100`} strokeDashoffset={25 - ((liveStats.foodRatio + liveStats.cosmeticsRatio + liveStats.electronicsRatio) / 100) * 100} strokeLinecap="round" />
         </svg>
       </div>
     </div>
@@ -127,25 +158,25 @@ const Dash = (props) => {
 const styles = {
   dashPage: { color: '#fff', padding: '40px' },
   header: { marginBottom: '30px' },
-  mainTitle: { fontSize: '2.2rem', fontWeight: '900', letterSpacing: '5px' },
-  subTitle: { color: '#00ff88', fontSize: '0.7rem', fontWeight: 'bold', letterSpacing: '2px' },
+  mainTitle: { fontSize: '2.2rem', fontWeight: '900', letterSpacing: '5px', textTransform: 'uppercase' },
+  subTitle: { color: '#00ff88', fontSize: '0.75rem', fontWeight: '900', letterSpacing: '2px', textTransform: 'uppercase' },
   statsRow: { display: 'flex', gap: '20px', marginBottom: '40px' },
-  statCard: { flex: 1, background: 'rgba(255,255,255,0.05)', padding: '30px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)' },
-  miniLabel: { fontSize: '0.75rem', fontWeight: '900', color: '#00ff88', letterSpacing: '2px', display: 'block', marginBottom: '10px' },
-  statValue: { fontSize: '2.5rem', fontWeight: '900' },
+  statCard: { flex: 1, background: 'rgba(255,255,255,0.05)', padding: '30px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' },
+  miniLabel: { fontSize: '0.75rem', fontWeight: '900', color: '#00ff88', letterSpacing: '2px', display: 'block', marginBottom: '12px', textTransform: 'uppercase' },
+  statValue: { fontSize: '2.5rem', fontWeight: '900', letterSpacing: '1px' },
   liquidContainer: { display: 'flex', justifyContent: 'space-around', marginBottom: '50px' },
   tubeWrapper: { textAlign: 'center' },
-  glassTube: { width: '65px', height: '180px', background: 'rgba(255, 255, 255, 0.02)', border: '3px solid rgba(255, 255, 255, 0.15)', borderRadius: '40px', position: 'relative', overflow: 'hidden' },
+  glassTube: { width: '65px', height: '180px', background: 'rgba(255, 255, 255, 0.02)', border: '3px solid rgba(255, 255, 255, 0.15)', borderRadius: '40px', position: 'relative', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' },
   liquidFill: { position: 'absolute', bottom: 0, width: '100%', borderRadius: '40px 40px 0 0' },
-  tubeLabel: { margin: '15px 0', fontSize: '0.8rem', fontWeight: '900', letterSpacing: '1px' },
-  chartContainer: { display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '40px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' },
+  tubeLabel: { margin: '15px 0', fontSize: '0.8rem', fontWeight: '900', letterSpacing: '1px', textTransform: 'uppercase' },
+  chartContainer: { display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '40px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', gap: '40px' },
   chartInfo: { flex: 1 },
-  chartTitle: { fontSize: '1.2rem', fontWeight: '900', marginBottom: '20px' },
-  legendGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
+  chartTitle: { fontSize: '1.3rem', fontWeight: '900', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '1px' },
+  legendGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' },
   legendItem: { display: 'flex', alignItems: 'center', gap: '10px' },
-  dot: { width: '10px', height: '10px', borderRadius: '50%' },
-  legendText: { fontSize: '0.85rem', color: '#aaa' },
-  svgPie: { width: '200px', transform: 'rotate(-90deg)' }
+  dot: { width: '12px', height: '12px', borderRadius: '50%', boxShadow: '0 0 12px currentColor' },
+  legendText: { fontSize: '0.85rem', color: '#fff', fontWeight: '800' },
+  svgPie: { width: '220px', minWidth: '220px', transform: 'rotate(-90deg)', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))' }
 };
 
 export default Dash;

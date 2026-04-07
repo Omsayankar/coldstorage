@@ -6,93 +6,11 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Addon from './components/Addon';
 import Dash from './components/dash';
 import AiAgent from './components/AiAgent';
+import Home from './components/Home';
 
 gsap.registerPlugin(ScrollTrigger);
 
-// --- CINEMATIC HOME SCROLL ENGINE ---
-function HomeScroll() {
-  const containerRef = useRef(null);
-  const videoRef = useRef(null);
-  
-  const steps = useMemo(() => [
-    { title: "SYSTEM START", desc: "Initializing FreshFlow eco-protocol for your warehouse logistics." },
-    { title: "LOSS TRACKING", desc: "Monitor every rupee. Our system tracks potential financial loss before it happens." },
-    { title: "LIVE SYNC", desc: "Change data anywhere. Your inventory updates across all devices instantly." },
-    { title: "COLD STORAGE", desc: "Specialized climate monitoring for dairy, meat, and sensitive medical supplies." },
-    { title: "LED ALERTS", desc: "Glowing neon indicators tell you exactly what needs to be sold first." },
-    { title: "WASTE CONTROL", desc: "Smart algorithms suggest moving stock to prevent disposal and maximize profit." },
-    { title: "USER REVIEWS", desc: "How would you rate your experience with FreshFlow today?", isRating: true },
-    { title: "ABOUT US", desc: "We are building the future of zero-waste logistics. Connect with our team below:", isSocial: true }
-  ], []);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.currentTime = 0;
-    video.onloadedmetadata = () => {
-      gsap.to(video, {
-        currentTime: video.duration,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: containerRef.current,
-          start: 'top top',
-          end: 'bottom bottom',
-          scrub: 1.5,
-        },
-      });
-    };
-    gsap.to(video, {
-      scale: 1.1,
-      transformOrigin: "top center",
-      ease: 'none',
-      scrollTrigger: { trigger: containerRef.current, start: 'top top', end: 'bottom bottom', scrub: 1.5 }
-    });
-    steps.forEach((_, i) => {
-      const isEven = i % 2 === 0;
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: containerRef.current,
-          start: `${(i * 100) / steps.length}% center`,
-          end: `${((i + 1) * 100) / steps.length}% center`,
-          scrub: 0.8,
-          toggleActions: "play reverse play reverse"
-        }
-      });
-      tl.fromTo(`.card-${i}`, 
-        { opacity: 0, x: isEven ? -100 : 100, visibility: 'hidden' }, 
-        { opacity: 1, x: 0, visibility: 'visible', duration: 0.5 }
-      ).to(`.card-${i}`, { opacity: 0, scale: 0.8, duration: 0.5 }, "+=0.5");
-    });
-    ScrollTrigger.refresh();
-  }, [steps]);
-
-  return (
-    <div ref={containerRef} style={styles.container}>
-      <div style={styles.videoWrapper}>
-        <video ref={videoRef} muted playsInline style={styles.video}>
-          <source src="/assets/videos/video.mp4" type="video/mp4" />
-        </video>
-        <div style={styles.cinematicVignette}></div>
-      </div>
-      <div style={styles.overlay}>
-        {steps.map((step, i) => (
-          <div key={i} className={`card-${i}`} style={{
-              ...styles.cardPositioner,
-              justifyContent: i % 2 === 0 ? 'flex-start' : 'flex-end',
-              paddingLeft: i % 2 === 0 ? '10%' : '5%',
-              paddingRight: i % 2 === 0 ? '5%' : '10%',
-            }}>
-            <div style={styles.miniGlassCard}>
-              <p style={styles.meta}>STEP_0{i + 1}</p>
-              <h2 style={styles.title}>{step.title}</h2>
-              <p style={styles.description}>{step.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// --- CINEMATIC HOME SCROLL ENGINE REMOVED IN FAVOR OF NEW HOME DASHBOARD ---
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
@@ -100,13 +18,22 @@ export default function App() {
   const [currentView, setCurrentView] = useState('home');
   const [items, setItems] = useState([]); // SHARED STATE FOR AI
 
-  // Fetch items centrally so AI and Dashboard stay in sync
+  // UPDATED: MongoDB Sync logic included while preserving functionality
   const fetchGlobalItems = async () => {
     try {
       const res = await fetch('http://localhost:8080/api/items');
       const data = await res.json();
-      setItems(data);
-    } catch (err) { console.error("Global Sync Error"); }
+      
+      // SYNC: Map MongoDB's _id to React's id so Dash and AI Agent work perfectly
+      const mappedItems = data.map(item => ({
+        ...item,
+        id: item.id || item._id
+      }));
+      
+      setItems(mappedItems);
+    } catch (err) { 
+      console.error("Global Sync Error: Database unreachable"); 
+    }
   };
 
   useEffect(() => {
@@ -148,22 +75,20 @@ export default function App() {
         <div style={{ ...styles.logo, cursor: 'pointer' }} onClick={() => setCurrentView('home')}>FRESH<span style={{ color: '#00ff88' }}>FLOW</span></div>
         <div style={styles.navButtons}>
           <button className={`capsule-btn ${currentView === 'home' ? 'active-capsule' : ''}`} onClick={() => setCurrentView('home')}>HOME</button>
-          <button className={`capsule-btn ${currentView === 'addon' ? 'active-capsule' : ''}`} onClick={() => setCurrentView('addon')}>ADD ITEM +</button>
-          <button className={`capsule-btn ${currentView === 'dashboard' ? 'active-capsule' : ''}`} onClick={() => setCurrentView('dashboard')}>DASHBOARD</button>
-          <button className={`capsule-btn ${currentView === 'ai' ? 'active-capsule' : ''}`} style={{borderColor: '#0ef', color: '#0ef'}} onClick={() => setCurrentView('ai')}>AI AGENT</button>
+          <button className={`capsule-btn ${currentView === 'addon' ? 'active-capsule' : ''}`} onClick={() => setCurrentView('addon')}>MANAGE INVENTORY</button>
+          <button className={`capsule-btn ${currentView === 'dashboard' ? 'active-capsule' : ''}`} onClick={() => setCurrentView('dashboard')}>ANALYTICS</button>
+          <button className={`capsule-btn ${currentView === 'ai' ? 'active-capsule' : ''}`} style={{borderColor: '#0ef', color: '#0ef'}} onClick={() => setCurrentView('ai')}>AI INSIGHTS</button>
         </div>
       </nav>
 
       {/* VIEW SWITCHER */}
-      {currentView === 'home' && <HomeScroll />}
+      {currentView === 'home' && <Home items={items} setView={setCurrentView} />}
       
-      {/* Passing fetchGlobalItems to Addon so it can trigger a refresh across the app */}
       {currentView === 'addon' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><Addon onItemAdded={fetchGlobalItems} /></div></div>}
       
       {currentView === 'dashboard' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><Dash inventory={items} /></div></div>}
       
-      {/* PASSING DATA TO AI AGENT FOR REAL-TIME AUDIT */}
-      {currentView === 'ai' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><AiAgent inventoryData={items} /></div></div>}
+      {currentView === 'ai' && <div style={styles.fullPageContainer}><div style={styles.featureCard}><AiAgent inventoryData={items} refreshData={fetchGlobalItems} /></div></div>}
     </div>
   );
 }
@@ -181,11 +106,6 @@ const styles = {
   video: { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', filter: 'brightness(85%) contrast(120%)' },
   cinematicVignette: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'radial-gradient(circle, transparent 30%, rgba(0,0,0,0.8) 100%)', zIndex: 2 },
   overlay: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 3, pointerEvents: 'none' },
-  cardPositioner: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', visibility: 'hidden', boxSizing: 'border-box' },
-  miniGlassCard: { width: '340px', background: 'rgba(255, 255, 255, 0.05)', backdropFilter: 'blur(30px)', borderRadius: '24px', padding: '40px', border: '1px solid rgba(255, 255, 255, 0.15)', pointerEvents: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' },
-  meta: { color: '#00ff88', fontSize: '0.6rem', fontWeight: '900', letterSpacing: '4px' },
-  title: { color: '#fff', fontSize: '1.7rem', margin: '12px 0', fontWeight: '900', textTransform: 'uppercase' },
-  description: { color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem', lineHeight: '1.6' },
   fullPageContainer: { paddingTop: '160px', width: '100%', display: 'flex', justifyContent: 'center', minHeight: '100vh', background: '#000', position: 'relative', zIndex: 50 },
   featureCard: { width: '92%', maxWidth: '950px', background: 'transparent' }
 };
